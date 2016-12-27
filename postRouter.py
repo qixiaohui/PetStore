@@ -3,13 +3,14 @@ from flask import Flask, jsonify, abort, request
 from postModel import db, User, Posts
 from flask_login import LoginManager, current_user, login_required
 from postSchema import ma, post_schema, posts_schema
+from scrappy import scrape
+from flask_cors import CORS, cross_origin
 app = Flask(__name__)
-
-puppies = [{"name": "1", "image":"asda"},{"name":"2","image":"fsdf"}]
 
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///posts.db"
 db.init_app(app)
 ma.init_app(app)
+CORS(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
 
@@ -20,12 +21,14 @@ def load_user_from_request(request):
         return None
     return User.query.filter_by(api_key=api_key).first()
 
-@app.route("/api/post/list", methods=["GET"])
-def getPostList():
-    posts = Posts.query.all()
+@app.route("/api/post/list/<int:index>", methods=["GET"])
+@cross_origin()
+def getPostList(index):
+    posts = Posts.query.paginate(page=index, per_page=20).items
     return posts_schema.jsonify(posts)
 
 @app.route("/api/post/<int:index>", methods=["GET"])
+@cross_origin()
 def getPost(index):
     post = Posts.query.filter(Posts.id==index).first_or_404()
     return post_schema.jsonify(post)
@@ -60,5 +63,8 @@ if __name__ == "__main__":
     if "create_db" in sys.argv:
         with app.app_context():
             db.create_all()
+    elif "addEntry" in sys.argv:
+        db.app = app
+        scrape(db)
     else:
-        app.run(debug=True)
+        app.run(debug=True, port=8000)
